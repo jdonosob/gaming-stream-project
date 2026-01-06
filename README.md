@@ -6,7 +6,7 @@ A real-time gaming leaderboard system built on a streaming data architecture usi
 
 This project demonstrates a production-grade streaming pipeline for processing game events and maintaining real-time leaderboards. It's designed to handle high-throughput game events (kills, deaths, scores, achievements) and provide instant leaderboard rankings with sub-millisecond query performance.
 
-**Current Status**: ✅ Producer and Processor are fully implemented and tested. API layer is planned for future development.
+**Current Status**: ✅ **Milestone 1 Complete** - All core components (Producer, Processor, API) are fully implemented and tested. The system is production-ready for the first milestone.
 
 ### Key Features
 
@@ -49,10 +49,20 @@ Game Events → Producer → Kafka → Processor → Redis → API → Clients
 - Displays live leaderboard every 20 events
 - **Run**: `python -m src.processor.leaderboard_processor`
 
-**API** (`src/api/`) ⏳ Planned
-- FastAPI-based REST API for querying leaderboards and player statistics
-- WebSocket support for real-time leaderboard updates
-- Endpoints: top players, player rankings, historical stats, achievements
+**API** (`src/api/server.py`) ✅ Implemented
+- FastAPI-based REST API with async Redis client for fast queries
+- WebSocket support for pushing real-time leaderboard updates to clients
+- Beautiful HTML dashboard with live leaderboard visualization
+- REST Endpoints:
+  - `GET /api/leaderboard?top=N` - Fetch top N players
+  - `GET /api/achievements?limit=N` - Fetch recent achievements
+  - `GET /api/player/{player_id}` - Get detailed player statistics
+- WebSocket endpoint: `WS /ws` - Real-time updates every 1 second
+- Auto-generated API documentation: `GET /docs` (Swagger UI)
+- CORS enabled for frontend development
+- Background broadcaster with change detection (only pushes when data changes)
+- **Run**: `python -m src.api.server`
+- **Access**: http://localhost:8000 (dashboard) or http://localhost:8000/docs (API docs)
 
 ### Infrastructure
 
@@ -151,10 +161,30 @@ You should see output like:
 ==================================================
 ```
 
-7. Access Kafka UI to monitor the system:
+7. Run the API server (in a third terminal):
+```bash
+source venv/bin/activate  # Activate venv again in new terminal
+python -m src.api.server
 ```
-http://localhost:8080
+
+You should see:
 ```
+==================================================
+🎮 GAMING LEADERBOARD API
+==================================================
+Dashboard: http://localhost:8000
+API Docs:  http://localhost:8000/docs
+WebSocket: ws://localhost:8000/ws
+==================================================
+```
+
+8. Access the live dashboard and monitoring tools:
+- **Live Dashboard**: http://localhost:8000 (real-time leaderboard with WebSocket)
+- **API Documentation**: http://localhost:8000/docs (Swagger UI)
+- **Kafka UI**: http://localhost:8080 (monitor topics, consumers, messages)
+
+Now you have the complete system running:
+- Producer generates events → Kafka stores them → Processor updates Redis → API serves the data → Dashboard displays it live!
 
 ### Configuration
 
@@ -322,7 +352,8 @@ docker inspect zookeeper | grep Health -A 10
 │   │   └── game_events.py                # Event generator (✅ implemented)
 │   ├── processor/
 │   │   └── leaderboard_processor.py      # Stream processor (✅ implemented)
-│   └── api/                              # REST API (⏳ planned)
+│   └── api/
+│       └── server.py                     # FastAPI server (✅ implemented)
 ├── data/                                 # Runtime data (git-ignored)
 │   └── redis/                            # Redis AOF persistence
 └── venv/                                 # Python virtual environment (git-ignored)
@@ -341,32 +372,66 @@ docker inspect zookeeper | grep Health -A 10
 
 ## Roadmap
 
-**Completed**:
+### ✅ Milestone 1: Core System (COMPLETE)
 - [x] Docker Compose infrastructure setup (Kafka, Zookeeper, Redis, Kafka UI)
-- [x] Game event producer with realistic event simulation
+- [x] Game event producer with realistic event simulation (3 event types)
 - [x] Stream processor with real-time leaderboard updates
 - [x] Idempotency pattern for duplicate event handling
 - [x] Player statistics tracking (scores, actions, games joined)
 - [x] Achievement feed with recent achievements
+- [x] REST API with FastAPI
+  - [x] GET /api/leaderboard (top N players)
+  - [x] GET /api/player/{player_id} (detailed player stats)
+  - [x] GET /api/achievements (recent achievements feed)
+  - [x] WebSocket endpoint for real-time updates (WS /ws)
+- [x] Interactive HTML dashboard with live WebSocket updates
+- [x] API documentation with Swagger UI
+- [x] Comprehensive documentation (README.md, CLAUDE.md)
 
-**In Progress**:
-- [ ] REST API with FastAPI
-  - [ ] GET /leaderboard/global (top N players)
-  - [ ] GET /player/{player_id}/stats (detailed player stats)
-  - [ ] GET /achievements/recent (recent achievements feed)
-  - [ ] WebSocket endpoint for real-time updates
-
-**Planned**:
+### 🔄 Milestone 2: Enhanced Features
 - [ ] Time-windowed leaderboards (hourly, daily, weekly, monthly)
-- [ ] Game-specific leaderboards (per game_id)
-- [ ] Advanced statistics (KDA ratios, win rates, streaks)
-- [ ] Frontend dashboard for leaderboard visualization
-- [ ] Authentication and rate limiting
+- [ ] Game-specific leaderboards (separate rankings per game_id)
+- [ ] Advanced player statistics (KDA ratios, win rates, kill streaks)
+- [ ] Event schema validation with Avro or Protobuf
+- [ ] Unit tests and integration tests
 - [ ] Prometheus metrics and Grafana dashboards
+- [ ] Authentication and rate limiting for API
+- [ ] Player profile pages with detailed stats
+
+### 🚀 Milestone 3: Faust-Powered Stream Processing
+**Goal**: Migrate from manual Kafka consumer to Faust for advanced stream processing capabilities.
+
+**Why Faust?**
+- Kafka Streams-like API in Python (already in dependencies!)
+- Built-in support for stateful processing with Tables
+- Native windowing (tumbling, hopping, sliding windows)
+- RocksDB-backed state storage for fault tolerance
+- Async-first architecture for high concurrency
+
+**Migration Tasks**:
+- [ ] Rewrite processor using Faust application framework
+- [ ] Define event models with Faust Records
+- [ ] Use Faust Tables for leaderboard state management
+- [ ] Implement windowed aggregations for time-based leaderboards
+- [ ] Leverage changelog topics for state recovery
+- [ ] Add processor web interface (Faust built-in)
+
+**Expected Benefits**:
+- Simpler code with higher-level abstractions
+- Automatic state management and recovery
+- Native support for complex windowing operations
+- Better partition handling and consumer group coordination
+- Built-in monitoring via Faust web UI
+
+### 📦 Milestone 4: Production Readiness
+- [ ] Kubernetes deployment manifests (Helm charts)
+- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Load testing and performance benchmarking
+- [ ] Multi-region deployment strategy
+- [ ] Data backup and disaster recovery procedures
+- [ ] Security hardening (TLS, authentication, encryption at rest)
 - [ ] Horizontal scaling with multiple processor instances
-- [ ] Data backup and recovery strategies
-- [ ] Event schema validation with Avro/Protobuf
-- [ ] CI/CD pipeline with GitHub Actions
+- [ ] Alert system for anomaly detection
 
 ## Contributing
 

@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a real-time gaming leaderboard system built on a streaming data architecture. The system processes game events through Kafka and maintains leaderboards in Redis for low-latency queries.
 
-**Tech Stack**: Python 3.9+, Apache Kafka, Redis, Docker Compose
+**Tech Stack**: Python 3.9+, Apache Kafka, Redis, Docker Compose, FastAPI
 
-**Status**: Core producer and processor components are implemented and tested.
+**Milestone Status**: ✅ **Milestone 1 Complete** - All core components (Producer, Processor, API) are fully implemented and tested.
+
+**Future Plans**: This is the first milestone. The project will continue with additional features and eventually migrate to Scala for improved performance and type safety.
 
 ## Architecture
 
@@ -30,10 +32,20 @@ The system follows a streaming pipeline pattern with three main components:
 - Displays leaderboard every 20 events
 - Run with: `python -m src.processor.leaderboard_processor`
 
-**API** (`src/api/`) - **NOT IMPLEMENTED YET**
-- Planned: FastAPI-based REST API for querying leaderboards
-- Will read from Redis for fast responses
-- Endpoints for rankings, player stats, etc.
+**API** (`src/api/server.py`) - **IMPLEMENTED**
+- FastAPI-based REST API with async Redis client
+- WebSocket support for real-time leaderboard updates
+- Built-in HTML dashboard with live updates
+- Endpoints:
+  - `GET /api/leaderboard?top=N` - Get top N players (default: 10)
+  - `GET /api/achievements?limit=N` - Get recent achievements (default: 10)
+  - `GET /api/player/{player_id}` - Get detailed player stats
+  - `WS /ws` - WebSocket for real-time updates
+  - `GET /` - Interactive HTML dashboard
+  - `GET /docs` - Auto-generated Swagger API documentation
+- Background broadcaster pushes updates every 1 second
+- CORS enabled for frontend development
+- Run with: `python -m src.api.server`
 
 ## Infrastructure Services
 
@@ -115,7 +127,17 @@ python -m src.producer.game_events
 python -m src.processor.leaderboard_processor
 ```
 
-Both processes should run simultaneously. The producer generates events, and the processor consumes them in real-time.
+4. In a third terminal, run the API server (serves dashboard and WebSocket):
+```bash
+python -m src.api.server
+```
+
+Then access:
+- **Dashboard**: http://localhost:8000 (live leaderboard with WebSocket updates)
+- **API Docs**: http://localhost:8000/docs (Swagger UI)
+- **Kafka UI**: http://localhost:8080 (monitor Kafka topics and consumers)
+
+All three processes (producer, processor, API) should run simultaneously for the full experience.
 
 ### Debugging and Inspection
 
@@ -290,3 +312,85 @@ When writing producers/consumers:
 - Use Kafka UI at http://localhost:8080 to monitor consumer groups
 - Check topic partitions and offset positions
 - Review consumer group status via: `docker exec -it kafka kafka-consumer-groups --bootstrap-server localhost:9093 --list`
+
+**Test API endpoints**:
+```bash
+# Get leaderboard
+curl http://localhost:8000/api/leaderboard?top=5
+
+# Get achievements
+curl http://localhost:8000/api/achievements?limit=10
+
+# Get player stats
+curl http://localhost:8000/api/player/player_001
+
+# Test WebSocket (using wscat if installed)
+wscat -c ws://localhost:8000/ws
+```
+
+**API server issues**:
+- If port 8000 is in use: `lsof -i :8000` to find the process
+- Check that Redis is accessible from the API (localhost:6379)
+- WebSocket connection errors: Verify no proxy/firewall blocking WS connections
+- Dashboard not updating: Check browser console for WebSocket connection status
+
+## Milestone 1: Completion Summary
+
+This milestone represents a **complete, working streaming data pipeline** with the following achievements:
+
+✅ **Infrastructure**: Docker Compose orchestration with Kafka, Zookeeper, Redis, and Kafka UI
+✅ **Producer**: Game event simulator with realistic event distribution
+✅ **Processor**: Stream processor with idempotent event handling and Redis updates
+✅ **API**: FastAPI server with REST endpoints, WebSocket support, and live dashboard
+✅ **Documentation**: Comprehensive README and CLAUDE.md for developers
+✅ **Monitoring**: Kafka UI for stream monitoring and Redis CLI for data inspection
+
+**What Works**:
+- End-to-end event flow from producer → Kafka → processor → Redis → API
+- Real-time leaderboard updates via WebSocket
+- Idempotent event processing (no duplicate scoring)
+- Manual offset commits for reliability
+- Beautiful HTML dashboard with live updates
+- RESTful API with auto-generated documentation
+
+## Future Development Plans
+
+### Milestone 2: Enhanced Features (Python)
+- Time-windowed leaderboards (hourly, daily, weekly, monthly)
+- Game-specific leaderboards (separate rankings per game)
+- Advanced player statistics (KDA, win rates, streaks)
+- Persistent consumer offset management
+- Schema validation with Avro or Protobuf
+- Metrics and monitoring with Prometheus/Grafana
+- Unit and integration tests
+
+### Milestone 3: Faust-Powered Stream Processing
+**Why Faust?**
+- **Kafka Streams-like API**: Similar abstractions to Kafka Streams but in Python
+- **Table abstractions**: Built-in support for stateful stream processing
+- **Windowing**: Native support for tumbling, hopping, and sliding windows
+- **RocksDB backing**: Persistent state storage for fault tolerance
+- **Async-first**: Built on asyncio for high concurrency
+- **Python ecosystem**: Continue using existing tools while gaining Kafka Streams benefits
+
+**Migration Strategy**:
+1. Replace current manual consumer with Faust application
+   - Define event models with Faust Records
+   - Use Faust Tables for leaderboard state
+   - Implement windowed aggregations natively
+2. Benefits over current implementation:
+   - Automatic state management with RocksDB
+   - Built-in windowing for time-based leaderboards
+   - Better partition handling and rebalancing
+   - Changelog topics for state recovery
+3. Keep producer and API layers unchanged (gradual migration)
+
+**Note**: Faust is already in `requirements.txt` (faust-streaming==0.11.0), ready to use!
+
+### Milestone 4: Production Readiness
+- Kubernetes deployment manifests
+- CI/CD pipeline (GitHub Actions or GitLab CI)
+- Load testing and performance benchmarking
+- Multi-region deployment strategy
+- Data backup and disaster recovery
+- Security hardening (authentication, encryption, rate limiting)
