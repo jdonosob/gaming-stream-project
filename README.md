@@ -6,6 +6,8 @@ A real-time gaming leaderboard system built on a streaming data architecture usi
 
 This project demonstrates a production-grade streaming pipeline for processing game events and maintaining real-time leaderboards. It's designed to handle high-throughput game events (kills, deaths, scores, achievements) and provide instant leaderboard rankings with sub-millisecond query performance.
 
+**Current Status**: ✅ Producer and Processor are fully implemented and tested. API layer is planned for future development.
+
 ### Key Features
 
 - **Real-time Event Processing**: Ingest and process game events as they happen
@@ -13,6 +15,7 @@ This project demonstrates a production-grade streaming pipeline for processing g
 - **Low-latency Queries**: Redis-powered leaderboards with sub-millisecond response times
 - **Event Replay**: 7-day message retention allows reprocessing and recovery
 - **Monitoring Dashboard**: Kafka UI for visualizing topics, messages, and consumer lag
+- **Idempotent Processing**: Duplicate events are handled gracefully with event deduplication
 
 ## Architecture
 
@@ -24,21 +27,32 @@ Game Events → Producer → Kafka → Processor → Redis → API → Clients
 
 ### Components
 
-**Producer** (`src/producer/`)
-- Generates or ingests game events from various sources
-- Publishes events to Kafka topics with proper partitioning
-- Example events: player kills, deaths, match completions, score updates
+**Producer** (`src/producer/game_events.py`) ✅ Implemented
+- Simulates realistic game event streams with configurable event rates
+- Generates three event types with realistic probability distribution:
+  - `player_scored` (70%): Kill, headshot, assist, objective capture, etc.
+  - `player_joined` (20%): Player joining games
+  - `achievement_unlocked` (10%): Rare achievements with rarity levels
+- Publishes to Kafka topic `game-events` with full acknowledgment
+- Features automatic retries and graceful shutdown handling
+- **Run**: `python -m src.producer.game_events`
 
-**Processor** (`src/processor/`)
-- Consumes events from Kafka topics
-- Performs real-time aggregations (total kills, win rates, scores)
-- Updates Redis sorted sets for leaderboard rankings
-- Handles windowed computations (daily, weekly, all-time)
+**Processor** (`src/processor/leaderboard_processor.py`) ✅ Implemented
+- Consumes from Kafka with consumer group `leaderboard-processor`
+- Updates Redis data structures in real-time:
+  - Global leaderboard (sorted set)
+  - Per-player detailed statistics (hashes)
+  - Recent achievements feed (list, max 100)
+  - Event deduplication tracking (set)
+- Implements idempotency pattern to handle duplicate events safely
+- Manual offset commits for at-least-once delivery semantics
+- Displays live leaderboard every 20 events
+- **Run**: `python -m src.processor.leaderboard_processor`
 
-**API** (`src/api/`)
-- REST API for querying leaderboards and player statistics
-- Reads from Redis for fast response times
-- Endpoints for top players, player rankings, historical stats
+**API** (`src/api/`) ⏳ Planned
+- FastAPI-based REST API for querying leaderboards and player statistics
+- WebSocket support for real-time leaderboard updates
+- Endpoints: top players, player rankings, historical stats, achievements
 
 ### Infrastructure
 
@@ -52,6 +66,7 @@ Game Events → Producer → Kafka → Processor → Redis → API → Clients
 ### Prerequisites
 
 - Docker and Docker Compose installed
+- Python 3.9 or higher
 - Ports 2181, 6379, 8080, 9092, 9093 available
 
 ### Quick Start
@@ -78,7 +93,65 @@ You should see all services in "healthy" state:
 - `redis` - Running on port 6379
 - `kafka-ui` - Running on port 8080
 
-4. Access Kafka UI:
+4. Set up Python environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+5. Run the producer (in one terminal):
+```bash
+python -m src.producer.game_events
+```
+
+You should see output like:
+```
+🔌 Connecting to Kafka...
+✅ Connected to Kafka successfully!
+
+🎮 Starting Game Event Simulation
+   Topic: game-events
+   Rate: 5 events/second
+--------------------------------------------------
+
+🎯 Event #1: player_scored
+   Player: NightHawk
+   Action: kill (+100 pts)
+   ✓ Sent to game-events [partition=0, offset=0]
+```
+
+6. Run the processor (in another terminal):
+```bash
+source venv/bin/activate  # Activate venv again in new terminal
+python -m src.processor.leaderboard_processor
+```
+
+You should see output like:
+```
+🔌 Connecting to Redis...
+✅ Connected to Redis!
+🔌 Connecting to Kafka...
+✅ Connected to Kafka!
+   Topic: game-events
+   Consumer Group: leaderboard-processor
+
+==================================================
+⚡ STREAM PROCESSOR STARTED
+==================================================
+
+📨 Event #1 [partition=0, offset=0]
+   🎯 NightHawk: +100 pts (kill)
+      New Score: 100 | Rank: #1
+
+==================================================
+🏆 CURRENT LEADERBOARD
+==================================================
+   🥇 #1 NightHawk: 100 pts
+==================================================
+```
+
+7. Access Kafka UI to monitor the system:
 ```
 http://localhost:8080
 ```
@@ -239,14 +312,20 @@ docker inspect zookeeper | grep Health -A 10
 
 ```
 .
-├── docker-compose.yml          # Infrastructure orchestration
+├── docker-compose.yml                     # Infrastructure orchestration
+├── requirements.txt                       # Python dependencies
+├── .gitignore                            # Git ignore patterns
+├── CLAUDE.md                             # Developer guide for AI assistants
+├── README.md                             # This file
 ├── src/
-│   ├── producer/              # Event producers
-│   ├── processor/             # Stream processors
-│   └── api/                   # REST API service
-├── data/
-│   └── redis/                 # Redis persistence (git-ignored)
-└── README.md
+│   ├── producer/
+│   │   └── game_events.py                # Event generator (✅ implemented)
+│   ├── processor/
+│   │   └── leaderboard_processor.py      # Stream processor (✅ implemented)
+│   └── api/                              # REST API (⏳ planned)
+├── data/                                 # Runtime data (git-ignored)
+│   └── redis/                            # Redis AOF persistence
+└── venv/                                 # Python virtual environment (git-ignored)
 ```
 
 ## Technology Stack
@@ -256,18 +335,38 @@ docker inspect zookeeper | grep Health -A 10
 - **Redis 7 Alpine**: In-memory data store
 - **Kafka UI**: Web-based monitoring interface
 - **Docker Compose**: Container orchestration
+- **Python 3.9+**: Application runtime
+- **kafka-python 2.0.2**: Kafka client library
+- **redis-py 5.0.1**: Redis client library
 
 ## Roadmap
 
-- [ ] Implement producer for game event simulation
-- [ ] Build Kafka Streams processor for aggregations
-- [ ] Create REST API with FastAPI/Flask/Express
-- [ ] Add windowed leaderboards (hourly, daily, weekly)
-- [ ] Implement player statistics tracking
-- [ ] Add authentication and rate limiting
-- [ ] Create frontend dashboard for leaderboard visualization
-- [ ] Add Prometheus metrics and Grafana dashboards
-- [ ] Implement data backup and recovery strategies
+**Completed**:
+- [x] Docker Compose infrastructure setup (Kafka, Zookeeper, Redis, Kafka UI)
+- [x] Game event producer with realistic event simulation
+- [x] Stream processor with real-time leaderboard updates
+- [x] Idempotency pattern for duplicate event handling
+- [x] Player statistics tracking (scores, actions, games joined)
+- [x] Achievement feed with recent achievements
+
+**In Progress**:
+- [ ] REST API with FastAPI
+  - [ ] GET /leaderboard/global (top N players)
+  - [ ] GET /player/{player_id}/stats (detailed player stats)
+  - [ ] GET /achievements/recent (recent achievements feed)
+  - [ ] WebSocket endpoint for real-time updates
+
+**Planned**:
+- [ ] Time-windowed leaderboards (hourly, daily, weekly, monthly)
+- [ ] Game-specific leaderboards (per game_id)
+- [ ] Advanced statistics (KDA ratios, win rates, streaks)
+- [ ] Frontend dashboard for leaderboard visualization
+- [ ] Authentication and rate limiting
+- [ ] Prometheus metrics and Grafana dashboards
+- [ ] Horizontal scaling with multiple processor instances
+- [ ] Data backup and recovery strategies
+- [ ] Event schema validation with Avro/Protobuf
+- [ ] CI/CD pipeline with GitHub Actions
 
 ## Contributing
 
