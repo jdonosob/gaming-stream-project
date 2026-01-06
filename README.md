@@ -1,0 +1,285 @@
+# Gaming Leaderboard Streaming System
+
+A real-time gaming leaderboard system built on a streaming data architecture using Kafka for event processing and Redis for low-latency queries.
+
+## Overview
+
+This project demonstrates a production-grade streaming pipeline for processing game events and maintaining real-time leaderboards. It's designed to handle high-throughput game events (kills, deaths, scores, achievements) and provide instant leaderboard rankings with sub-millisecond query performance.
+
+### Key Features
+
+- **Real-time Event Processing**: Ingest and process game events as they happen
+- **Scalable Architecture**: Built on Apache Kafka for handling millions of events per second
+- **Low-latency Queries**: Redis-powered leaderboards with sub-millisecond response times
+- **Event Replay**: 7-day message retention allows reprocessing and recovery
+- **Monitoring Dashboard**: Kafka UI for visualizing topics, messages, and consumer lag
+
+## Architecture
+
+The system follows a classic streaming pipeline pattern:
+
+```
+Game Events → Producer → Kafka → Processor → Redis → API → Clients
+```
+
+### Components
+
+**Producer** (`src/producer/`)
+- Generates or ingests game events from various sources
+- Publishes events to Kafka topics with proper partitioning
+- Example events: player kills, deaths, match completions, score updates
+
+**Processor** (`src/processor/`)
+- Consumes events from Kafka topics
+- Performs real-time aggregations (total kills, win rates, scores)
+- Updates Redis sorted sets for leaderboard rankings
+- Handles windowed computations (daily, weekly, all-time)
+
+**API** (`src/api/`)
+- REST API for querying leaderboards and player statistics
+- Reads from Redis for fast response times
+- Endpoints for top players, player rankings, historical stats
+
+### Infrastructure
+
+- **Apache Kafka**: Distributed event streaming platform
+- **Zookeeper**: Coordination service for Kafka cluster management
+- **Redis**: In-memory data store for leaderboard state
+- **Kafka UI**: Web-based monitoring and administration tool
+
+## Getting Started
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- Ports 2181, 6379, 8080, 9092, 9093 available
+
+### Quick Start
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd gaming-stream-project
+```
+
+2. Start the infrastructure:
+```bash
+docker-compose up -d
+```
+
+3. Verify all services are healthy:
+```bash
+docker-compose ps
+```
+
+You should see all services in "healthy" state:
+- `zookeeper` - Running on port 2181
+- `kafka` - Running on ports 9092 (external) and 9093 (internal)
+- `redis` - Running on port 6379
+- `kafka-ui` - Running on port 8080
+
+4. Access Kafka UI:
+```
+http://localhost:8080
+```
+
+### Configuration
+
+**Kafka Settings**:
+- Message retention: 7 days (configurable via `KAFKA_LOG_RETENTION_MS`)
+- Auto-create topics: Enabled
+- Replication factor: 1 (single broker setup)
+
+**Redis Settings**:
+- Persistence: Append-only file (AOF) enabled
+- Data directory: `./data/redis`
+
+## Development
+
+### Connecting to Kafka
+
+**From your host machine** (Python, Node.js, etc.):
+```python
+# Python example with kafka-python
+from kafka import KafkaProducer
+
+producer = KafkaProducer(
+    bootstrap_servers=['localhost:9092']
+)
+```
+
+**From Docker containers**:
+```python
+# Use internal listener
+producer = KafkaProducer(
+    bootstrap_servers=['kafka:9093']
+)
+```
+
+### Working with Redis
+
+Access Redis CLI:
+```bash
+docker exec -it redis redis-cli
+```
+
+Example leaderboard operations:
+```redis
+# Add player scores
+ZADD leaderboard:daily:kills 150 "player123"
+ZADD leaderboard:daily:kills 200 "player456"
+
+# Get top 10 players
+ZREVRANGE leaderboard:daily:kills 0 9 WITHSCORES
+
+# Get player rank
+ZREVRANK leaderboard:daily:kills "player123"
+```
+
+### Monitoring
+
+**Kafka UI Dashboard**: http://localhost:8080
+- View all topics and their messages
+- Monitor consumer group lag
+- Inspect message payloads
+- Manage topic configurations
+
+**Service Logs**:
+```bash
+# View all logs
+docker-compose logs -f
+
+# View specific service
+docker-compose logs -f kafka
+docker-compose logs -f redis
+```
+
+**Health Checks**:
+```bash
+# Check all services
+docker-compose ps
+
+# Redis ping test
+docker exec -it redis redis-cli ping
+
+# Kafka broker check
+docker exec -it kafka kafka-broker-api-versions --bootstrap-server localhost:9093
+```
+
+## Data Flow Example
+
+1. **Event Generation**: A player scores a kill in-game
+```json
+{
+  "event_type": "kill",
+  "player_id": "player123",
+  "timestamp": "2026-01-05T12:34:56Z",
+  "game_id": "match789",
+  "weapon": "rifle"
+}
+```
+
+2. **Producer**: Publishes event to Kafka topic `game-events`
+
+3. **Processor**: Consumes event and updates Redis:
+```redis
+ZINCRBY leaderboard:daily:kills 1 "player123"
+ZINCRBY leaderboard:alltime:kills 1 "player123"
+```
+
+4. **API**: Client queries top 10 daily leaders:
+```
+GET /api/leaderboard/daily/kills?limit=10
+```
+
+5. **Response**: API reads from Redis and returns JSON:
+```json
+{
+  "leaderboard": "daily_kills",
+  "updated_at": "2026-01-05T12:35:00Z",
+  "players": [
+    {"rank": 1, "player_id": "player456", "score": 200},
+    {"rank": 2, "player_id": "player123", "score": 151}
+  ]
+}
+```
+
+## Troubleshooting
+
+**Services won't start**:
+```bash
+# Clean restart
+docker-compose down -v
+docker-compose up -d
+```
+
+**Port conflicts**:
+```bash
+# Check what's using a port
+lsof -i :9092
+netstat -an | grep 9092
+```
+
+**Zookeeper unhealthy**:
+```bash
+# Check logs for errors
+docker-compose logs zookeeper
+
+# Verify healthcheck is passing
+docker inspect zookeeper | grep Health -A 10
+```
+
+**Can't connect to Kafka**:
+- From host: Use `localhost:9092`
+- From container: Use `kafka:9093`
+- Check firewall settings
+- Verify `KAFKA_ADVERTISED_LISTENERS` configuration
+
+## Project Structure
+
+```
+.
+├── docker-compose.yml          # Infrastructure orchestration
+├── src/
+│   ├── producer/              # Event producers
+│   ├── processor/             # Stream processors
+│   └── api/                   # REST API service
+├── data/
+│   └── redis/                 # Redis persistence (git-ignored)
+└── README.md
+```
+
+## Technology Stack
+
+- **Apache Kafka 7.5.0**: Event streaming platform
+- **Zookeeper 7.5.0**: Cluster coordination
+- **Redis 7 Alpine**: In-memory data store
+- **Kafka UI**: Web-based monitoring interface
+- **Docker Compose**: Container orchestration
+
+## Roadmap
+
+- [ ] Implement producer for game event simulation
+- [ ] Build Kafka Streams processor for aggregations
+- [ ] Create REST API with FastAPI/Flask/Express
+- [ ] Add windowed leaderboards (hourly, daily, weekly)
+- [ ] Implement player statistics tracking
+- [ ] Add authentication and rate limiting
+- [ ] Create frontend dashboard for leaderboard visualization
+- [ ] Add Prometheus metrics and Grafana dashboards
+- [ ] Implement data backup and recovery strategies
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+
+## License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+## Acknowledgments
+
+Built with:
+- [Apache Kafka](https://kafka.apache.org/) - Distributed event streaming
+- [Redis](https://redis.io/) - In-memory data structure store
+- [Kafka UI](https://github.com/provectus/kafka-ui) - Kafka management interface

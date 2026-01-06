@@ -1,0 +1,254 @@
+# =============================================================================
+# Gaming Leaderboard Project - .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Data & Persistence (Runtime state - never commit!)
+# -----------------------------------------------------------------------------
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.rdb
+*.aof
+dump.rdb
+appendonly.aof
+
+# -----------------------------------------------------------------------------
+# Docker
+# -----------------------------------------------------------------------------
+.docker/
+docker-compose.override.yml
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+.env
+.virtualenv
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.env.local
+.env.*.local
+
+# -----------------------------------------------------------------------------
+# Node.js / JavaScript
+# -----------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Dependency directories
+jspm_packages/
+
+# Testing
+coverage/
+
+# Production
+.cache/
+
+# -----------------------------------------------------------------------------
+# Go
+# -----------------------------------------------------------------------------
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.dylib
+*.test
+*.out
+
+# Go workspace
+go.work
+
+# -----------------------------------------------------------------------------
+# Java
+# -----------------------------------------------------------------------------
+*.class
+*.jar
+*.war
+*.ear
+target/
+.mvn/
+mvnw
+mvnw.cmd
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------------------------------------------------------
+# OS Files
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# -----------------------------------------------------------------------------
+# IDE / Editors
+# -----------------------------------------------------------------------------
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains (IntelliJ, PyCharm, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Vim
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# -----------------------------------------------------------------------------
+# Secrets & Credentials (NEVER commit these!)
+# -----------------------------------------------------------------------------
+*.pem
+*.key
+*.cert
+*.crt
+secrets/
+.secrets
+credentials.json
+service-account.json
+.env.production
+.env.staging
+
+# API keys and tokens
+*.token
+.api-keys
+config/secrets.yml
+
+# -----------------------------------------------------------------------------
+# Testing & Benchmarks
+# -----------------------------------------------------------------------------
+.benchmarks/
+.hypothesis/
+test-results/
+*.prof
+
+# -----------------------------------------------------------------------------
+# Temporary Files
+# -----------------------------------------------------------------------------
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+.~*
+
+# -----------------------------------------------------------------------------
+# Project Specific
+# -----------------------------------------------------------------------------
+# Kafka data (if running locally without Docker)
+kafka-logs/
+zookeeper-data/
+
+# Redis dumps
+*.rdb
+*.aof
+
+# Local development overrides
+docker-compose.local.yml
+.env.development.local

@@ -1,0 +1,138 @@
+# =============================================================================
+# Gaming Leaderboard - Infrastructure
+# =============================================================================
+# This file defines all the services our streaming pipeline needs.
+# Run with: docker-compose up -d
+# =============================================================================
+
+# version: '3.8' -- Obsolete parameter
+
+services:
+  # ---------------------------------------------------------------------------
+  # ZOOKEEPER - The Coordinator
+  # ---------------------------------------------------------------------------
+  # WHY DO WE NEED THIS?
+  # Kafka relies on Zookeeper to:
+  #   - Track which brokers (Kafka servers) are alive
+  #   - Manage topic configurations
+  #   - Handle leader election for partitions
+  # 
+  # Think of Zookeeper as the "air traffic controller" for Kafka.
+  # NOTE: Newer Kafka versions (3.x+) can run without Zookeeper (KRaft mode),
+  #       but we'll use this traditional setup as it's still widely used.
+  # ---------------------------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"                    # Port for Kafka to connect to Zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181      # Port Zookeeper listens on
+      ZOOKEEPER_TICK_TIME: 2000        # Basic time unit in ms (heartbeat interval)
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # KAFKA - The Message Broker (Heart of our system!)
+  # ---------------------------------------------------------------------------
+  # WHY KAFKA?
+  #   - Handles millions of events per second
+  #   - Stores messages on disk (survives restarts)
+  #   - Allows multiple consumers to read the same data
+  #   - Messages can be replayed (crucial for recovery!)
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy   # Wait for Zookeeper to be ready
+    ports:
+      - "9092:9092"                   # External access (from your Python code)
+      - "9093:9093"                   # Internal Docker network access
+    environment:
+      KAFKA_BROKER_ID: 1                                    # Unique ID for this broker
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181               # How to find Zookeeper
+      
+      # LISTENERS - This is often confusing, let me explain:
+      # - INTERNAL: For communication between Docker containers
+      # - EXTERNAL: For communication from your host machine (Python code)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9093,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1   # Only 1 broker, so replication = 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1       # Minimum in-sync replicas
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      
+      # Auto-create topics when producers send to non-existent topics
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      
+      # How long to keep messages (7 days = 604800000 ms)
+      # This is the "time window" you mentioned!
+      KAFKA_LOG_RETENTION_MS: 604800000
+      
+    healthcheck:
+      test: kafka-broker-api-versions --bootstrap-server localhost:9093
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # REDIS - The State Store (Lightning-fast reads!)
+  # ---------------------------------------------------------------------------
+  # WHY REDIS?
+  #   - In-memory = sub-millisecond latency
+  #   - Sorted Sets = perfect for leaderboards (O(log n) operations)
+  #   - Simple key-value model = easy to use
+  #   - Built-in commands like ZADD, ZRANK, ZREVRANGE
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine            # Alpine = smaller image size
+    hostname: redis
+    container_name: redis
+    ports:
+      - "6379:6379"                   # Default Redis port
+    command: redis-server --appendonly yes   # Enable persistence to disk
+    volumes:
+      - ./data/redis:/data            # Persist data between restarts
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # KAFKA-UI - Visual Interface (Optional but super helpful!)
+  # ---------------------------------------------------------------------------
+  # WHY INCLUDE THIS?
+  #   - See your topics and messages visually
+  #   - Monitor consumer lag (how far behind processors are)
+  #   - Debug issues without command-line tools
+  #   - Great for learning!
+  # ---------------------------------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"                   # Access at http://localhost:8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: gaming-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+# =============================================================================
+# NETWORK - All services communicate on this network
+# =============================================================================
+networks:
+  default:
+    name: gaming-network

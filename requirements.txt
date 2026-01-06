@@ -1,0 +1,49 @@
+# =============================================================================
+# Gaming Leaderboard - Python Dependencies
+# =============================================================================
+# Install with: pip install -r requirements.txt
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# KAFKA CLIENT
+# -----------------------------------------------------------------------------
+# kafka-python: Pure Python client for Apache Kafka
+# - Simple and Pythonic API
+# - Good for learning (no Java dependencies)
+# - Production-ready for moderate throughput
+kafka-python==2.0.2
+
+# -----------------------------------------------------------------------------
+# REDIS CLIENT  
+# -----------------------------------------------------------------------------
+# redis: Official Python client for Redis
+# - Supports all Redis data structures
+# - Connection pooling built-in
+# - Async support available
+redis==5.0.1
+
+# -----------------------------------------------------------------------------
+# STREAM PROCESSING
+# -----------------------------------------------------------------------------
+# faust-streaming: Stream processing library (fork of original Faust)
+# - Built by Robinhood for high-frequency trading
+# - Kafka Streams-like API in Python
+# - Handles state management, windowing, etc.
+faust-streaming==0.11.0
+
+# -----------------------------------------------------------------------------
+# WEB API
+# -----------------------------------------------------------------------------
+# FastAPI: Modern, fast web framework
+# - Automatic OpenAPI documentation
+# - Built-in WebSocket support
+# - Async by default
+fastapi==0.109.0
+uvicorn==0.27.0          # ASGI server to run FastAPI
+websockets==12.0         # WebSocket support
+
+# -----------------------------------------------------------------------------
+# UTILITIES
+# -----------------------------------------------------------------------------
+python-dotenv==1.0.0     # Load environment variables from .env file
+pydantic==2.5.3          # Data validation (used by FastAPI)
